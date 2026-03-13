@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cricket Snakes & Ladders</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --pitch: #c8a96e;
+    --grass: #2d7a3a;
+    --grass2: #1f5c2b;
+    --accent: #e8c84a;
+    --red: #c0392b;
+    --blue: #1565c0;
+    --white: #f5f0e8;
+    --dark: #1a1a1a;
+    --border: #8b6914;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: radial-gradient(ellipse at top, #0d2b0d 0%, #041404 100%);
+    min-height: 100vh;
+    font-family: 'Rajdhani', sans-serif;
+    color: var(--white);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px 10px;
+    overflow-x: hidden;
+  }
+
+  /* Grass texture background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: repeating-linear-gradient(
+      0deg, transparent, transparent 20px,
+      rgba(0,80,0,0.05) 20px, rgba(0,80,0,0.05) 21px
+    ), repeating-linear-gradient(
+      90deg, transparent, transparent 20px,
+      rgba(0,80,0,0.05) 20px, rgba(0,80,0,0.05) 21px
+    );
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  h1 {
+    font-family: 'Bebas Neue', cursive;
+    font-size: clamp(2rem, 5vw, 3.5rem);
+    letter-spacing: 4px;
+    color: var(--accent);
+    text-shadow: 0 0 30px rgba(232,200,74,0.5), 3px 3px 0 rgba(0,0,0,0.5);
+    margin-bottom: 4px;
+    position: relative; z-index: 1;
+  }
+  .subtitle {
+    font-size: 1rem;
+    color: rgba(245,240,232,0.6);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 18px;
+    position: relative; z-index: 1;
+  }
+
+  .game-wrap {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+    position: relative;
+    z-index: 1;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  /* ===== BOARD ===== */
+  .board-container {
+    position: relative;
+  }
+  .board {
+    display: grid;
+    grid-template-columns: repeat(10, 1fr);
+    width: min(560px, 94vw);
+    height: min(560px, 94vw);
+    border: 4px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 0 0 2px var(--accent), 0 20px 60px rgba(0,0,0,0.7);
+    position: relative;
+  }
+  .cell {
+    border: 1px solid rgba(139,105,20,0.4);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    font-size: clamp(0.45rem, 1.2vw, 0.7rem);
+    font-weight: 700;
+    cursor: default;
+    transition: filter 0.2s;
+    overflow: hidden;
+  }
+  .cell:nth-child(even) { background: #2a6b35; }
+  .cell:nth-child(odd)  { background: #246030; }
+
+  /* Cricket pitch rows */
+  .cell.pitch-row { background: #c8a96e !important; color: #5a3a00; }
+  .cell.pitch-row:nth-child(even) { background: #d4b578 !important; }
+
+  .cell-num {
+    font-size: clamp(0.4rem, 1vw, 0.6rem);
+    font-weight: 700;
+    color: rgba(255,255,255,0.7);
+    position: absolute;
+    top: 2px; left: 3px;
+    line-height: 1;
+  }
+  .cell.pitch-row .cell-num { color: rgba(80,50,0,0.7); }
+
+  .cell-icon {
+    font-size: clamp(0.9rem, 2.2vw, 1.4rem);
+    line-height: 1;
+  }
+
+  /* START / END */
+  .cell.start-cell { background: #1a4d8f !important; }
+  .cell.end-cell { background: #8b0000 !important; }
+
+  /* SNAKE cells */
+  .cell.snake-head { background: #7b0000 !important; }
+  .cell.snake-tail { background: #a00000 !important; }
+
+  /* LADDER cells */
+  .cell.ladder-bottom { background: #003d00 !important; }
+  .cell.ladder-top    { background: #005500 !important; }
+
+  /* SVG overlay for snakes & ladders */
+  .board-svg {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+    z-index: 2;
+  }
+
+  /* Players */
+  .player-token {
+    position: absolute;
+    width: clamp(14px, 3.5vw, 22px);
+    height: clamp(14px, 3.5vw, 22px);
+    border-radius: 50%;
+    border: 2px solid white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: clamp(0.5rem, 1.2vw, 0.75rem);
+    font-weight: 900;
+    z-index: 10;
+    transition: top 0.5s ease, left 0.5s ease;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.6);
+    transform: translate(-50%, -50%);
+  }
+  .token-p1 { background: radial-gradient(circle at 35% 35%, #ff6b6b, #c0392b); color: white; }
+  .token-p2 { background: radial-gradient(circle at 35% 35%, #74b9ff, #1565c0); color: white; }
+  .token-p3 { background: radial-gradient(circle at 35% 35%, #ffd166, #e09b00); color: #333; }
+  .token-p4 { background: radial-gradient(circle at 35% 35%, #95e57a, #1e8400); color: white; }
+
+  /* ===== SIDE PANEL ===== */
+  .side-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    width: min(220px, 90vw);
+  }
+
+  .panel-box {
+    background: rgba(0,0,0,0.5);
+    border: 1px solid rgba(232,200,74,0.3);
+    border-radius: 10px;
+    padding: 14px;
+    backdrop-filter: blur(4px);
+  }
+  .panel-title {
+    font-family: 'Bebas Neue', cursive;
+    font-size: 1.2rem;
+    color: var(--accent);
+    letter-spacing: 2px;
+    margin-bottom: 10px;
+    border-bottom: 1px solid rgba(232,200,74,0.2);
+    padding-bottom: 6px;
+  }
+
+  /* Players info */
+  .player-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    border-radius: 6px;
+    margin-bottom: 6px;
+    background: rgba(255,255,255,0.05);
+    transition: background 0.3s;
+  }
+  .player-info.active { background: rgba(232,200,74,0.15); border: 1px solid rgba(232,200,74,0.4); }
+  .player-info.out { opacity: 0.4; }
+  .ptoken-mini {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 900; font-size: 0.7rem;
+    flex-shrink: 0;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+  }
+  .pname { font-weight: 700; font-size: 0.85rem; flex: 1; }
+  .pscore { font-size: 0.75rem; color: var(--accent); }
+  .ppos { font-size: 0.7rem; color: rgba(255,255,255,0.5); }
+
+  /* Dice */
+  .dice-area { text-align: center; }
+  .dice {
+    width: 64px; height: 64px;
+    background: var(--white);
+    border-radius: 12px;
+    margin: 0 auto 12px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    padding: 8px;
+    gap: 4px;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.2), 0 4px 12px rgba(0,0,0,0.4);
+    transition: transform 0.1s;
+  }
+  .dice.rolling { animation: roll 0.4s ease; }
+  @keyframes roll {
+    0%   { transform: rotate(0deg) scale(1); }
+    25%  { transform: rotate(15deg) scale(1.1); }
+    50%  { transform: rotate(-15deg) scale(0.9); }
+    75%  { transform: rotate(10deg) scale(1.05); }
+    100% { transform: rotate(0deg) scale(1); }
+  }
+  .dot {
+    width: 100%; height: 100%;
+    border-radius: 50%;
+    background: #1a1a1a;
+    display: none;
+  }
+  .dot.show { display: block; }
+
+  /* Dot patterns */
+  .dice[data-val="1"] .d5 { display: block; }
+  .dice[data-val="2"] .d1,.dice[data-val="2"] .d9 { display: block; }
+  .dice[data-val="3"] .d1,.dice[data-val="3"] .d5,.dice[data-val="3"] .d9 { display: block; }
+  .dice[data-val="4"] .d1,.dice[data-val="4"] .d3,.dice[data-val="4"] .d7,.dice[data-val="4"] .d9 { display: block; }
+  .dice[data-val="5"] .d1,.dice[data-val="5"] .d3,.dice[data-val="5"] .d5,.dice[data-val="5"] .d7,.dice[data-val="5"] .d9 { display: block; }
+  .dice[data-val="6"] .d1,.dice[data-val="6"] .d3,.dice[data-val="6"] .d4,.dice[data-val="6"] .d6,.dice[data-val="6"] .d7,.dice[data-val="6"] .d9 { display: block; }
+
+  .roll-btn {
+    background: linear-gradient(135deg, var(--accent), #c8960a);
+    color: #1a1a1a;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 24px;
+    font-family: 'Bebas Neue', cursive;
+    font-size: 1.2rem;
+    letter-spacing: 2px;
+    cursor: pointer;
+    width: 100%;
+    transition: transform 0.1s, box-shadow 0.1s;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  }
+  .roll-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(0,0,0,0.4); }
+  .roll-btn:active { transform: translateY(1px); }
+  .roll-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  /* Log */
+  .log-box {
+    max-height: 150px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--accent) transparent;
+  }
+  .log-entry {
+    font-size: 0.75rem;
+    padding: 3px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    line-height: 1.4;
+  }
+  .log-entry:last-child { border: none; }
+  .log-entry .em { color: var(--accent); font-weight: 700; }
+  .log-entry .bad { color: #ff6b6b; }
+  .log-entry .good { color: #6bff8a; }
+
+  /* Legend */
+  .legend-item {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 0.75rem; margin-bottom: 5px;
+  }
+  .legend-dot { width: 14px; height: 14px; border-radius: 3px; flex-shrink: 0; }
+
+  /* Player select */
+  .player-count-wrap { display: flex; gap: 8px; justify-content: center; margin-bottom: 10px; }
+  .cnt-btn {
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(232,200,74,0.4);
+    color: var(--white);
+    border-radius: 6px;
+    padding: 4px 14px;
+    font-family: 'Bebas Neue', cursive;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .cnt-btn.selected { background: var(--accent); color: #1a1a1a; }
+
+  .new-game-btn {
+    background: transparent;
+    border: 1px solid rgba(232,200,74,0.5);
+    color: var(--accent);
+    border-radius: 8px;
+    padding: 8px;
+    font-family: 'Bebas Neue', cursive;
+    font-size: 1rem;
+    letter-spacing: 2px;
+    cursor: pointer;
+    width: 100%;
+    transition: all 0.2s;
+  }
+  .new-game-btn:hover { background: rgba(232,200,74,0.1); }
+
+  /* Winner overlay */
+  .winner-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.85);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .winner-overlay.show { display: flex; }
+  .winner-box {
+    background: linear-gradient(135deg, #0d2b0d, #1a4a1a);
+    border: 3px solid var(--accent);
+    border-radius: 16px;
+    padding: 40px 60px;
+    text-align: center;
+    animation: pop 0.4s ease;
+  }
+  @keyframes pop { 0% { transform: scale(0.5); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+  .winner-box h2 { font-family: 'Bebas Neue', cursive; font-size: 3rem; color: var(--accent); letter-spacing: 4px; }
+  .winner-box p { font-size: 1.2rem; color: var(--white); margin: 8px 0 20px; }
+  .trophy { font-size: 4rem; }
+  .play-again-btn {
+    background: linear-gradient(135deg, var(--accent), #c8960a);
+    color: #1a1a1a;
+    border: none;
+    border-radius: 10px;
+    padding: 12px 32px;
+    font-family: 'Bebas Neue', cursive;
+    font-size: 1.4rem;
+    letter-spacing: 2px;
+    cursor: pointer;
+  }
+
+  /* Notification toast */
+  .toast {
+    position: fixed;
+    bottom: 30px; left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: rgba(10,40,10,0.95);
+    border: 1px solid var(--accent);
+    border-radius: 10px;
+    padding: 12px 24px;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--white);
+    z-index: 50;
+    transition: transform 0.4s ease;
+    text-align: center;
+    max-width: 300px;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  .toast .toast-icon { font-size: 1.4rem; display: block; margin-bottom: 2px; }
+
+  /* num players */
+  .num-label { font-size: 0.8rem; color: rgba(255,255,255,0.6); margin-bottom: 6px; }
+</style>
+</head>
+<body>
+
+<h1>🏏 Cricket Snakes & Ladders</h1>
+<p class="subtitle">Bat your way to the century!</p>
+
+<div class="game-wrap">
+  <!-- BOARD -->
+  <div class="board-container">
+    <div class="board" id="board"></div>
+    <svg class="board-svg" id="boardSvg" viewBox="0 0 560 560" preserveAspectRatio="none"></svg>
+    <!-- Tokens -->
+    <div class="player-token token-p1" id="token0" style="display:none">🏏</div>
+    <div class="player-token token-p2" id="token1" style="display:none">🥎</div>
+    <div class="player-token token-p3" id="token2" style="display:none">🏆</div>
+    <div class="player-token token-p4" id="token3" style="display:none">⭐</div>
+  </div>
+
+  <!-- SIDE PANEL -->
+  <div class="side-panel">
+
+    <!-- Setup -->
+    <div class="panel-box" id="setupBox">
+      <div class="panel-title">⚙️ Setup</div>
+      <div class="num-label">Number of players:</div>
+      <div class="player-count-wrap">
+        <button class="cnt-btn" onclick="setPlayers(2)">2</button>
+        <button class="cnt-btn selected" onclick="setPlayers(3)">3</button>
+        <button class="cnt-btn" onclick="setPlayers(4)">4</button>
+      </div>
+      <button class="new-game-btn" onclick="newGame()">🏏 Start New Game</button>
+    </div>
+
+    <!-- Players -->
+    <div class="panel-box">
+      <div class="panel-title">🧢 Players</div>
+      <div id="playersList"></div>
+    </div>
+
+    <!-- Dice -->
+    <div class="panel-box">
+      <div class="panel-title">🎲 Roll</div>
+      <div class="dice-area">
+        <div class="dice" id="dice" data-val="1">
+          <div class="dot d1"></div><div class="dot d2"></div><div class="dot d3"></div>
+          <div class="dot d4"></div><div class="dot d5"></div><div class="dot d6"></div>
+          <div class="dot d7"></div><div class="dot d8"></div><div class="dot d9"></div>
+        </div>
+        <button class="roll-btn" id="rollBtn" onclick="rollDice()">🎲 BOWL IT!</button>
+      </div>
+    </div>
+
+    <!-- Log -->
+    <div class="panel-box">
+      <div class="panel-title">📋 Scorecard</div>
+      <div class="log-box" id="log"></div>
+    </div>
+
+    <!-- Legend -->
+    <div class="panel-box">
+      <div class="panel-title">📖 Legend</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#c0392b"></div>🐍 Wicket — go back!</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#005500"></div>🪜 Six! — go forward!</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#c8a96e"></div>🏏 Cricket pitch</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#1a4d8f"></div>🟦 Start</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#8b0000"></div>🟥 Century! (Win)</div>
+    </div>
+  </div>
+</div>
+
+<!-- Winner overlay -->
+<div class="winner-overlay" id="winnerOverlay">
+  <div class="winner-box">
+    <div class="trophy">🏆</div>
+    <h2 id="winnerName">PLAYER 1</h2>
+    <p id="winnerMsg">Smashed a century! OUT for a WIN!</p>
+    <button class="play-again-btn" onclick="newGame()">🏏 Play Again</button>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast">
+  <span class="toast-icon" id="toastIcon">🏏</span>
+  <span id="toastMsg">Ready!</span>
+</div>
+
+<script>
+// ===== GAME DATA =====
+// Snakes: head -> tail  (wickets)
+const SNAKES = {
+  99: 21,
+  87: 24,
+  73: 14,
+  62: 3,
+  47: 16,
+  35: 8,
+};
+
+// Ladders: bottom -> top  (sixes)
+const LADDERS = {
+  4: 25,
+  13: 46,
+  27: 64,
+  40: 59,
+  53: 88,
+  71: 92,
+};
+
+// Cricket pitch square rows (rows 4 & 7, i.e. squares 31-40 and 61-70)
+const PITCH_SQUARES = new Set();
+for (let i = 31; i <= 40; i++) PITCH_SQUARES.add(i);
+for (let i = 61; i <= 70; i++) PITCH_SQUARES.add(i);
+
+const PLAYER_NAMES = ['India 🏏', 'Australia 🦘', 'England 🦁', 'Pakistan 🌙'];
+const PLAYER_CLASSES = ['token-p1','token-p2','token-p3','token-p4'];
+const PLAYER_COLORS = ['#c0392b','#1565c0','#e09b00','#1e8400'];
+
+// Emoji decorations for special squares
+const SQUARE_ICONS = {};
+Object.keys(SNAKES).forEach(s => { SQUARE_ICONS[+s] = '🐍'; });
+Object.values(SNAKES).forEach(s => { SQUARE_ICONS[+s] = '💀'; });
+Object.keys(LADDERS).forEach(s => { SQUARE_ICONS[+s] = '🔺'; });
+Object.values(LADDERS).forEach(s => { SQUARE_ICONS[+s] = '🌟'; });
+SQUARE_ICONS[1] = '🏁';
+SQUARE_ICONS[100] = '🏆';
+
+// ===== STATE =====
+let numPlayers = 3;
+let positions = [];  // 1-indexed square
+let currentPlayer = 0;
+let rolling = false;
+let gameOver = false;
+
+// ===== BOARD RENDERING =====
+function squareToCell(sq) {
+  // sq: 1–100
+  // Row from bottom: row 0 = squares 1-10, row 1 = 11-20, ...
+  const row = Math.floor((sq - 1) / 10);
+  const col = (sq - 1) % 10;
+  // Row 0 = bottom (grid row 9), left to right
+  // Row 1 = next up, right to left (snake pattern)
+  const gridRow = 9 - row;
+  const gridCol = (row % 2 === 0) ? col : (9 - col);
+  return { row: gridRow, col: gridCol };
+}
+
+function cellCenter(sq, boardSize) {
+  const { row, col } = squareToCell(sq);
+  const cellSize = boardSize / 10;
+  return {
+    x: col * cellSize + cellSize / 2,
+    y: row * cellSize + cellSize / 2
+  };
+}
+
+function buildBoard() {
+  const board = document.getElementById('board');
+  board.innerHTML = '';
+  // Build cells row by row from top (row 0) to bottom (row 9)
+  // row 0 top = squares 100-91 etc
+  for (let r = 0; r < 10; r++) {
+    for (let c = 0; c < 10; c++) {
+      // Determine square number
+      const boardRow = 9 - r; // 0=bottom, 9=top
+      const sq = boardRow % 2 === 0
+        ? boardRow * 10 + c + 1          // left to right
+        : boardRow * 10 + (10 - c);       // right to left
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.id = `cell-${sq}`;
+      if (PITCH_SQUARES.has(sq)) cell.classList.add('pitch-row');
+      if (sq === 1) cell.classList.add('start-cell');
+      if (sq === 100) cell.classList.add('end-cell');
+      if (SNAKES[sq]) cell.classList.add('snake-head');
+      if (Object.values(SNAKES).includes(sq)) cell.classList.add('snake-tail');
+      if (LADDERS[sq]) cell.classList.add('ladder-bottom');
+      if (Object.values(LADDERS).includes(sq)) cell.classList.add('ladder-top');
+
+      const numDiv = document.createElement('div');
+      numDiv.className = 'cell-num';
+      numDiv.textContent = sq;
+      cell.appendChild(numDiv);
+
+      if (SQUARE_ICONS[sq]) {
+        const icon = document.createElement('div');
+        icon.className = 'cell-icon';
+        icon.textContent = SQUARE_ICONS[sq];
+        cell.appendChild(icon);
+      }
+      board.appendChild(cell);
+    }
+  }
+}
+
+function drawSnakesLadders() {
+  const svg = document.getElementById('boardSvg');
+  svg.innerHTML = '';
+  const boardSize = 560;
+
+  // Draw ladders
+  Object.entries(LADDERS).forEach(([from, to]) => {
+    const f = cellCenter(+from, boardSize);
+    const t = cellCenter(+to, boardSize);
+    // Ladder: two rails
+    const dx = (t.x - f.x), dy = (t.y - f.y);
+    const len = Math.sqrt(dx*dx + dy*dy);
+    const nx = -dy/len * 5, ny = dx/len * 5;
+    // Left rail
+    drawLine(svg, f.x+nx, f.y+ny, t.x+nx, t.y+ny, '#6bff8a', 2.5, '');
+    // Right rail
+    drawLine(svg, f.x-nx, f.y-ny, t.x-nx, t.y-ny, '#6bff8a', 2.5, '');
+    // Rungs
+    const steps = Math.floor(len / 18);
+    for (let i = 1; i <= steps; i++) {
+      const frac = i / (steps+1);
+      const rx = f.x + dx*frac, ry = f.y + dy*frac;
+      drawLine(svg, rx+nx, ry+ny, rx-nx, ry-ny, '#c8ffc8', 2, '');
+    }
+    // Arrow head at top
+    drawArrow(svg, t.x, t.y, '#6bff8a');
+    // Labels
+    drawLabel(svg, f.x, f.y, '6️⃣', 10);
+  });
+
+  // Draw snakes
+  Object.entries(SNAKES).forEach(([from, to]) => {
+    const f = cellCenter(+from, boardSize);
+    const t = cellCenter(+to, boardSize);
+    // Wavy snake path
+    const path = buildSnakePath(f, t);
+    const el = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    el.setAttribute('d', path);
+    el.setAttribute('fill', 'none');
+    el.setAttribute('stroke', '#ff4444');
+    el.setAttribute('stroke-width', '4');
+    el.setAttribute('stroke-linecap', 'round');
+    el.setAttribute('opacity', '0.85');
+    svg.appendChild(el);
+    // Snake head
+    const headEl = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    headEl.setAttribute('cx', f.x); headEl.setAttribute('cy', f.y);
+    headEl.setAttribute('r', '7');
+    headEl.setAttribute('fill', '#cc0000');
+    headEl.setAttribute('opacity', '0.9');
+    svg.appendChild(headEl);
+    drawLabel(svg, f.x+10, f.y-10, '🐍', 11);
+  });
+}
+
+function drawLine(svg, x1, y1, x2, y2, color, width, dash) {
+  const el = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+  el.setAttribute('x1',x1);el.setAttribute('y1',y1);
+  el.setAttribute('x2',x2);el.setAttribute('y2',y2);
+  el.setAttribute('stroke',color);
+  el.setAttribute('stroke-width',width);
+  if (dash) el.setAttribute('stroke-dasharray', dash);
+  el.setAttribute('opacity','0.85');
+  svg.appendChild(el);
+}
+
+function drawArrow(svg, x, y, color) {
+  const el = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+  el.setAttribute('points', `${x},${y-8} ${x-5},${y+4} ${x+5},${y+4}`);
+  el.setAttribute('fill', color);
+  el.setAttribute('opacity', '0.9');
+  svg.appendChild(el);
+}
+
+function drawLabel(svg, x, y, text, size) {
+  const el = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+  el.setAttribute('x', x); el.setAttribute('y', y);
+  el.setAttribute('font-size', size);
+  el.setAttribute('text-anchor', 'middle');
+  el.setAttribute('dominant-baseline', 'middle');
+  el.textContent = text;
+  svg.appendChild(el);
+}
+
+function buildSnakePath(f, t) {
+  const mx = (f.x+t.x)/2, my = (f.y+t.y)/2;
+  const dx = t.x-f.x, dy = t.y-f.y;
+  const perp = 35;
+  const cx1 = mx + dy*0.3 + perp, cy1 = my - dx*0.3;
+  const cx2 = mx - dy*0.3 - perp, cy2 = my + dx*0.3;
+  return `M ${f.x} ${f.y} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${t.x} ${t.y}`;
+}
+
+// ===== TOKEN POSITIONING =====
+function positionToken(playerIdx) {
+  const token = document.getElementById(`token${playerIdx}`);
+  const sq = positions[playerIdx];
+  if (sq < 1) { token.style.display = 'none'; return; }
+  token.style.display = 'flex';
+  const board = document.getElementById('board');
+  const bRect = board.getBoundingClientRect();
+  const boardSize = bRect.width;
+  const cellSize = boardSize / 10;
+  const { row, col } = squareToCell(sq);
+
+  // Offset slightly for multiple players on same square
+  const playersOnSquare = positions.map((p,i) => i !== playerIdx && p === sq).filter(Boolean).length;
+  const offsets = [[0,0],[6,-6],[-6,6],[6,6]];
+  const off = offsets[playerIdx % 4];
+
+  const x = col * cellSize + cellSize/2 + off[0];
+  const y = row * cellSize + cellSize/2 + off[1];
+
+  const containerRect = document.querySelector('.board-container').getBoundingClientRect();
+  token.style.left = (bRect.left - containerRect.left + x) + 'px';
+  token.style.top  = (bRect.top  - containerRect.top  + y) + 'px';
+}
+
+function repositionAll() {
+  for (let i = 0; i < numPlayers; i++) positionToken(i);
+}
+
+// ===== UI UPDATE =====
+function updatePlayersUI() {
+  const list = document.getElementById('playersList');
+  list.innerHTML = '';
+  for (let i = 0; i < numPlayers; i++) {
+    const d = document.createElement('div');
+    d.className = 'player-info' + (i === currentPlayer && !gameOver ? ' active' : '');
+    d.innerHTML = `
+      <div class="ptoken-mini" style="background:${PLAYER_COLORS[i]};color:white;">${i+1}</div>
+      <div>
+        <div class="pname">${PLAYER_NAMES[i]}</div>
+        <div class="ppos">Square: <span style="color:var(--accent)">${Math.max(positions[i],0)}</span></div>
+      </div>
+    `;
+    list.appendChild(d);
+  }
+}
+
+function addLog(html) {
+  const log = document.getElementById('log');
+  const entry = document.createElement('div');
+  entry.className = 'log-entry';
+  entry.innerHTML = html;
+  log.prepend(entry);
+}
+
+function showToast(icon, msg, duration = 2200) {
+  const t = document.getElementById('toast');
+  document.getElementById('toastIcon').textContent = icon;
+  document.getElementById('toastMsg').textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.remove('show'), duration);
+}
+
+// ===== DICE =====
+function setDice(val) {
+  const d = document.getElementById('dice');
+  d.setAttribute('data-val', val);
+  d.querySelectorAll('.dot').forEach(dot => dot.classList.remove('show'));
+  const positions = [null,'d1','d2','d3','d4','d5','d6','d7','d8','d9'];
+  const patterns = {
+    1:[5], 2:[1,9], 3:[1,5,9], 4:[1,3,7,9], 5:[1,3,5,7,9], 6:[1,3,4,6,7,9]
+  };
+  (patterns[val]||[]).forEach(p => {
+    const el = d.querySelector(`.d${p}`);
+    if (el) el.classList.add('show');
+  });
+}
+
+// ===== GAME LOGIC =====
+function newGame() {
+  positions = Array(numPlayers).fill(0);
+  currentPlayer = 0;
+  gameOver = false;
+  document.getElementById('winnerOverlay').classList.remove('show');
+  document.getElementById('rollBtn').disabled = false;
+  buildBoard();
+  drawSnakesLadders();
+  for (let i = 0; i < 4; i++) {
+    const t = document.getElementById(`token${i}`);
+    t.style.display = i < numPlayers ? 'flex' : 'none';
+  }
+  setTimeout(repositionAll, 50);
+  updatePlayersUI();
+  document.getElementById('log').innerHTML = '';
+  addLog(`<span class="em">🏏 New match started! ${numPlayers} players.</span>`);
+  addLog(`<span class="em">${PLAYER_NAMES[0]}</span> to bat first!`);
+  setDice(1);
+}
+
+function setPlayers(n) {
+  numPlayers = n;
+  document.querySelectorAll('.cnt-btn').forEach((b,i) => {
+    b.classList.toggle('selected', [2,3,4][i] === n);
+  });
+}
+
+function rollDice() {
+  if (rolling || gameOver) return;
+  rolling = true;
+  document.getElementById('rollBtn').disabled = true;
+
+  // Animate dice
+  const dice = document.getElementById('dice');
+  dice.classList.add('rolling');
+
+  let ticks = 0;
+  const animInterval = setInterval(() => {
+    setDice(Math.floor(Math.random()*6)+1);
+    if (++ticks > 6) {
+      clearInterval(animInterval);
+      dice.classList.remove('rolling');
+      const val = Math.floor(Math.random()*6)+1;
+      setDice(val);
+      setTimeout(() => processMove(val), 300);
+    }
+  }, 60);
+}
+
+function processMove(val) {
+  const p = currentPlayer;
+  const name = PLAYER_NAMES[p];
+  let pos = positions[p];
+
+  // First move: need exact 1 or 6 to enter
+  if (pos === 0) {
+    if (val === 1 || val === 6) {
+      pos = 1;
+      positions[p] = 1;
+      addLog(`<span class="em">${name}</span> enters the crease! 🏏`);
+      positionToken(p);
+    } else {
+      addLog(`${name} rolled <span class="em">${val}</span> — waiting to open batting.`);
+      nextPlayer();
+      return;
+    }
+    if (val !== 6) { nextPlayer(); return; }
+  }
+
+  const newPos = pos + val;
+
+  if (newPos > 100) {
+    addLog(`${name} rolled <span class="em">${val}</span> — needs exact score to win!`);
+    showToast('🏏', `${name}: Needs exact ${100-pos}!`);
+    nextPlayer();
+    return;
+  }
+
+  positions[p] = newPos;
+  positionToken(p);
+  addLog(`${name} rolled <span class="em">${val}</span> → square <span class="em">${newPos}</span>`);
+
+  if (newPos === 100) {
+    addLog(`<span class="good">🏆 ${name} hits a CENTURY! WINS THE MATCH!</span>`);
+    gameOver = true;
+    setTimeout(() => {
+      document.getElementById('winnerName').textContent = name;
+      document.getElementById('winnerMsg').textContent = 'Smashed a century! Match won!';
+      document.getElementById('winnerOverlay').classList.add('show');
+    }, 600);
+    rolling = false;
+    return;
+  }
+
+  // Check snake
+  if (SNAKES[newPos]) {
+    const dest = SNAKES[newPos];
+    setTimeout(() => {
+      positions[p] = dest;
+      positionToken(p);
+      addLog(`<span class="bad">🐍 WICKET! ${name} stumped back to ${dest}!</span>`);
+      showToast('🐍', `Wicket! ${name} stumped to ${dest}!`);
+      nextPlayer();
+    }, 600);
+    return;
+  }
+
+  // Check ladder
+  if (LADDERS[newPos]) {
+    const dest = LADDERS[newPos];
+    setTimeout(() => {
+      positions[p] = dest;
+      positionToken(p);
+      addLog(`<span class="good">🎯 SIX! ${name} smashes to ${dest}!</span>`);
+      showToast('🎯', `SIX! ${name} rockets to ${dest}!`);
+      // Extra turn on six or ladder? Let's not for fairness
+      nextPlayer();
+    }, 600);
+    return;
+  }
+
+  // Six = extra roll
+  if (val === 6) {
+    addLog(`<span class="good">⭐ SIX! ${name} gets another shot!</span>`);
+    showToast('⭐', `SIX! ${name} bowls again!`);
+    rolling = false;
+    document.getElementById('rollBtn').disabled = false;
+    updatePlayersUI();
+    return;
+  }
+
+  nextPlayer();
+}
+
+function nextPlayer() {
+  if (!gameOver) {
+    currentPlayer = (currentPlayer + 1) % numPlayers;
+    addLog(`<span class="em">${PLAYER_NAMES[currentPlayer]}</span>'s turn to bat.`);
+  }
+  rolling = false;
+  if (!gameOver) document.getElementById('rollBtn').disabled = false;
+  updatePlayersUI();
+}
+
+// ===== INIT =====
+window.addEventListener('load', () => {
+  setPlayers(3);
+  newGame();
+});
+
+window.addEventListener('resize', () => {
+  setTimeout(repositionAll, 50);
+  setTimeout(drawSnakesLadders, 50);
+});
+</script>
+</body>
+</html>
